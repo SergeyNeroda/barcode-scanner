@@ -1,9 +1,23 @@
+// App.js
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, Button, TouchableOpacity, FlatList, Linking, Share, Animated } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  View,
+  Button,
+  TouchableOpacity,
+  FlatList,
+  Linking,
+  Share,
+  Animated,
+} from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Camera, BarCodeScanner } from 'expo-camera';
+
+// Тепер імпортуємо тільки Camera з expo-camera
+import { Camera } from 'expo-camera';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
@@ -22,21 +36,29 @@ const colors = {
 
 export default function App() {
   return (
-    <NavigationContainer>
-      <Stack.Navigator>
-        <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: false }} />
-        <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Result' }} />
-        <Stack.Screen name="History" component={HistoryScreen} />
-      </Stack.Navigator>
-    </NavigationContainer>
+      <NavigationContainer>
+        <Stack.Navigator>
+          <Stack.Screen
+              name="Scanner"
+              component={ScannerScreen}
+              options={{ headerShown: false }}
+          />
+          <Stack.Screen
+              name="Result"
+              component={ResultScreen}
+              options={{ title: 'Результат' }}
+          />
+          <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Історія' }} />
+        </Stack.Navigator>
+      </NavigationContainer>
   );
 }
 
 function ScannerScreen({ navigation }) {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
-  const [cameraType, setCameraType] = useState(Camera.Constants.Type.back);
-  const [flash, setFlash] = useState(Camera.Constants.FlashMode.off);
+  const [cameraType, setCameraType] = useState('back');
+  const [flash, setFlash] = useState('off');
   const frameAnim = useState(new Animated.Value(0))[0];
 
   useEffect(() => {
@@ -44,26 +66,29 @@ function ScannerScreen({ navigation }) {
       const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
+
+    // Пульсація рамки
     Animated.loop(
-      Animated.sequence([
-        Animated.timing(frameAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(frameAnim, {
-          toValue: 0,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-      ])
+        Animated.sequence([
+          Animated.timing(frameAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+          Animated.timing(frameAnim, {
+            toValue: 0,
+            duration: 800,
+            useNativeDriver: true,
+          }),
+        ])
     ).start();
   }, []);
 
+  // Коли екран знову в фокусі, дозволяємо сканувати ще раз
   useFocusEffect(
-    useCallback(() => {
-      setScanned(false);
-    }, [])
+      useCallback(() => {
+        setScanned(false);
+      }, [])
   );
 
   const handleBarCodeScanned = async ({ data }) => {
@@ -75,64 +100,70 @@ function ScannerScreen({ navigation }) {
 
   if (hasPermission === null) {
     return (
-      <View style={styles.centered}>
-        <Text>Requesting camera permission...</Text>
-      </View>
+        <View style={styles.centered}>
+          <Text>Запит доступу до камери…</Text>
+        </View>
     );
   }
 
   if (hasPermission === false) {
     return (
-      <View style={styles.centered}>
-        <Text>No access to camera</Text>
-      </View>
+        <View style={styles.centered}>
+          <Text>Немає доступу до камери</Text>
+        </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <Camera
-        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-        type={cameraType}
-        flashMode={flash}
-        style={StyleSheet.absoluteFillObject}
-        barCodeScannerSettings={{
-          barCodeTypes: [BarCodeScanner.Constants.BarCodeType.qr],
-        }}
-      />
-      <View style={styles.overlay} pointerEvents="none">
-        <Animated.View
-          style={[
-            styles.frame,
-            { opacity: frameAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] }) },
-          ]}
+      <View style={styles.container}>
+        <Camera
+            style={StyleSheet.absoluteFillObject}
+            type={cameraType}
+            flashMode={flash}
+            onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+            // Використовуємо константи з Camera для QR-кодів:
+            barCodeScannerSettings={{
+              barCodeTypes: ['qr'],
+            }}
         />
+        <View style={styles.overlay} pointerEvents="none">
+          <Animated.View
+              style={[
+                styles.frame,
+                {
+                  opacity: frameAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 0.5],
+                  }),
+                },
+              ]}
+          />
+        </View>
+        <View style={styles.controls}>
+          <ControlButton
+              icon={flash === 'torch' ? 'flash-off' : 'flash-on'}
+              onPress={() =>
+                  setFlash(
+                      flash === 'torch'
+                          ? 'off'
+                          : 'torch'
+                  )
+              }
+          />
+          <ControlButton
+              icon="switch-camera"
+              onPress={() =>
+                  setCameraType((prev) =>
+                      prev === 'back'
+                          ? 'front'
+                          : 'back'
+                  )
+              }
+          />
+          <ControlButton icon="history" onPress={() => navigation.navigate('History')} />
+        </View>
+        <StatusBar style="light" />
       </View>
-      <View style={styles.controls}>
-        <ControlButton
-          icon={flash === Camera.Constants.FlashMode.torch ? 'flash-off' : 'flash-on'}
-          onPress={() =>
-            setFlash(
-              flash === Camera.Constants.FlashMode.torch
-                ? Camera.Constants.FlashMode.off
-                : Camera.Constants.FlashMode.torch
-            )
-          }
-        />
-        <ControlButton
-          icon="switch-camera"
-          onPress={() =>
-            setCameraType(
-              cameraType === Camera.Constants.Type.back
-                ? Camera.Constants.Type.front
-                : Camera.Constants.Type.back
-            )
-          }
-        />
-        <ControlButton icon="history" onPress={() => navigation.navigate('History')} />
-      </View>
-      <StatusBar style="light" />
-    </View>
   );
 }
 
@@ -149,25 +180,30 @@ function ResultScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.resultContainer}>
-      <Text selectable style={styles.resultText}>{entry.data}</Text>
-      {isUrl && (
-        <TouchableOpacity style={styles.primaryBtn} onPress={() => Linking.openURL(entry.data)}>
-          <Text style={styles.primaryBtnText}>Відкрити</Text>
+      <View style={styles.resultContainer}>
+        <Text selectable style={styles.resultText}>
+          {entry.data}
+        </Text>
+        {isUrl && (
+            <TouchableOpacity
+                style={styles.primaryBtn}
+                onPress={() => Linking.openURL(entry.data)}
+            >
+              <Text style={styles.primaryBtnText}>Відкрити</Text>
+            </TouchableOpacity>
+        )}
+        {!isUrl && (
+            <TouchableOpacity style={styles.primaryBtn} onPress={shareData}>
+              <Text style={styles.primaryBtnText}>Поділитися</Text>
+            </TouchableOpacity>
+        )}
+        <TouchableOpacity style={styles.secondaryBtn} onPress={copy}>
+          <Text style={styles.secondaryBtnText}>Копіювати</Text>
         </TouchableOpacity>
-      )}
-      {!isUrl && (
-        <TouchableOpacity style={styles.primaryBtn} onPress={shareData}>
-          <Text style={styles.primaryBtnText}>Поділитися</Text>
+        <TouchableOpacity onPress={() => navigation.navigate('Scanner')}>
+          <Text style={styles.link}>Сканувати знову</Text>
         </TouchableOpacity>
-      )}
-      <TouchableOpacity style={styles.secondaryBtn} onPress={copy}>
-        <Text style={styles.secondaryBtnText}>Копіювати</Text>
-      </TouchableOpacity>
-      <TouchableOpacity onPress={() => navigation.navigate('Scanner')}>
-        <Text style={styles.link}>Сканувати знову</Text>
-      </TouchableOpacity>
-    </View>
+      </View>
   );
 }
 
@@ -175,11 +211,11 @@ function HistoryScreen({ navigation }) {
   const [history, setHistory] = useState([]);
 
   useFocusEffect(
-    useCallback(() => {
-      (async () => {
-        setHistory(await loadHistory());
-      })();
-    }, [])
+      useCallback(() => {
+        (async () => {
+          setHistory(await loadHistory());
+        })();
+      }, [])
   );
 
   const clearHistory = async () => {
@@ -188,26 +224,28 @@ function HistoryScreen({ navigation }) {
   };
 
   const renderItem = ({ item }) => (
-    <TouchableOpacity onPress={() => navigation.navigate('Result', { entry: item })}>
-      <View style={styles.historyItem}>
-        <Text style={styles.itemText}>{snippet(item.data)}</Text>
-        <Text style={styles.itemDate}>{new Date(item.timestamp).toLocaleString()}</Text>
-      </View>
-    </TouchableOpacity>
+      <TouchableOpacity onPress={() => navigation.navigate('Result', { entry: item })}>
+        <View style={styles.historyItem}>
+          <Text style={styles.itemText}>{snippet(item.data)}</Text>
+          <Text style={styles.itemDate}>
+            {new Date(item.timestamp).toLocaleString()}
+          </Text>
+        </View>
+      </TouchableOpacity>
   );
 
   return (
-    <View style={styles.historyContainer}>
-      <FlatList
-        data={history}
-        keyExtractor={(item) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 16 }}
-      />
-      <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory}>
-        <Text style={styles.secondaryBtnText}>Очистити</Text>
-      </TouchableOpacity>
-    </View>
+      <View style={styles.historyContainer}>
+        <FlatList
+            data={history}
+            keyExtractor={(item) => item.id}
+            renderItem={renderItem}
+            contentContainerStyle={{ padding: 16 }}
+        />
+        <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory}>
+          <Text style={styles.secondaryBtnText}>Очистити</Text>
+        </TouchableOpacity>
+      </View>
   );
 }
 
@@ -236,9 +274,9 @@ async function loadHistory() {
 }
 
 const ControlButton = ({ icon, onPress }) => (
-  <TouchableOpacity onPress={onPress} style={styles.controlBtn}>
-    <MaterialIcons name={icon} size={28} color="#fff" />
-  </TouchableOpacity>
+    <TouchableOpacity onPress={onPress} style={styles.controlBtn}>
+      <MaterialIcons name={icon} size={28} color="#fff" />
+    </TouchableOpacity>
 );
 
 const styles = StyleSheet.create({
@@ -294,6 +332,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginBottom: 16,
     textAlign: 'center',
+    color: colors.text,
   },
   primaryBtn: {
     backgroundColor: colors.accent,
