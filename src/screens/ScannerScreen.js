@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,7 +6,10 @@ import {
   Button,
   Animated,
   StyleSheet,
+  TouchableWithoutFeedback,
 } from 'react-native';
+import Slider from '@react-native-community/slider';
+import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -22,6 +25,10 @@ export default function ScannerScreen({ navigation }) {
   const [flash, setFlash] = useState('off');
   const cameraRef = React.useRef(null);
   const frameAnim = React.useRef(new Animated.Value(0)).current;
+  const [zoom, setZoom] = useState(0);
+  const zoomRef = useRef(0);
+  const [layout, setLayout] = useState({ width: 1, height: 1 });
+  const [focusPoint, setFocusPoint] = useState({ x: 0.5, y: 0.5 });
 
   useFocusEffect(
     useCallback(() => {
@@ -91,43 +98,76 @@ export default function ScannerScreen({ navigation }) {
     navigation.navigate('EditPhoto', { photoUri: photo.uri });
   };
 
+  const handlePinch = (e) => {
+    if (e.nativeEvent.state === State.ACTIVE) {
+      let newZoom = zoomRef.current + (e.nativeEvent.scale - 1) / 5;
+      newZoom = Math.max(0, Math.min(newZoom, 1));
+      setZoom(newZoom);
+    } else if (e.nativeEvent.state === State.END) {
+      zoomRef.current = zoom;
+    }
+  };
+
+  const handleFocus = (e) => {
+    const { locationX, locationY } = e.nativeEvent;
+    setFocusPoint({
+      x: locationX / layout.width,
+      y: locationY / layout.height,
+    });
+  };
+
   return (
-    <View style={styles.container}>
-      <CameraView
-        ref={cameraRef}
-        style={StyleSheet.absoluteFillObject}
-        facing={facing}
-        flash={flash}
-        onBarcodeScanned={scanned ? undefined : onBarcodeScanned}
-        barcodeScannerSettings={{
-          barcodeTypes: ['qr'],
-        }}
+    <View
+      style={styles.container}
+      onLayout={(e) => setLayout(e.nativeEvent.layout)}
+    >
+      <PinchGestureHandler
+        onGestureEvent={handlePinch}
+        onHandlerStateChange={handlePinch}
       >
-        <View style={styles.overlayControls}>
-          <TouchableOpacity style={styles.iconBtn} onPress={toggleFlash}>
-            <MaterialIcons
-              name={flash === 'torch' ? 'flash-off' : 'flash-on'}
-              size={28}
-              color="#fff"
-            />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={toggleCamera}>
-            <MaterialIcons name="switch-camera" size={28} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => navigation.navigate('History')}
+        <View style={{ flex: 1 }}>
+          <CameraView
+            ref={cameraRef}
+            style={StyleSheet.absoluteFillObject}
+            facing={facing}
+            flash={flash}
+            zoom={zoom}
+            autoFocusPointOfInterest={focusPoint}
+            onBarcodeScanned={scanned ? undefined : onBarcodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
+            }}
           >
-            <MaterialIcons name="history" size={28} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={openGallery}>
-            <MaterialIcons name="photo-library" size={28} color="#fff" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.iconBtn} onPress={takePhoto}>
-            <MaterialIcons name="photo-camera" size={28} color="#fff" />
-          </TouchableOpacity>
+            <View style={styles.overlayControls}>
+              <TouchableOpacity style={styles.iconBtn} onPress={toggleFlash}>
+                <MaterialIcons
+                  name={flash === 'torch' ? 'flash-off' : 'flash-on'}
+                  size={28}
+                  color="#fff"
+                />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn} onPress={toggleCamera}>
+                <MaterialIcons name="switch-camera" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => navigation.navigate('History')}
+              >
+                <MaterialIcons name="history" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn} onPress={openGallery}>
+                <MaterialIcons name="photo-library" size={28} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.iconBtn} onPress={takePhoto}>
+                <MaterialIcons name="photo-camera" size={28} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </CameraView>
+          <TouchableWithoutFeedback onPress={handleFocus}>
+            <View style={StyleSheet.absoluteFillObject} />
+          </TouchableWithoutFeedback>
         </View>
-      </CameraView>
+      </PinchGestureHandler>
 
       <View style={styles.overlay} pointerEvents="none">
         <Animated.View
@@ -140,6 +180,18 @@ export default function ScannerScreen({ navigation }) {
               }),
             },
           ]}
+        />
+      </View>
+
+      <View style={styles.zoomSliderContainer} pointerEvents="box-none">
+        <Slider
+          minimumValue={0}
+          maximumValue={1}
+          value={zoom}
+          onValueChange={(v) => {
+            zoomRef.current = v;
+            setZoom(v);
+          }}
         />
       </View>
 
