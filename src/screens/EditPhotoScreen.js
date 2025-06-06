@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Text,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 import { styles } from '../styles';
@@ -72,7 +73,7 @@ export default function EditPhotoScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.cropContainer}>
+    <SafeAreaView style={styles.cropContainer}>
       <View
         style={{ flex: 1 }}
         onLayout={(e) => setLayout(e.nativeEvent.layout)}
@@ -96,6 +97,6 @@ export default function EditPhotoScreen({ route, navigation }) {
           <Text style={styles.secondaryBtnText}>Скасувати</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }

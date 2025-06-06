@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Alert, Linking, Share } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Clipboard from 'expo-clipboard';
 
 import { styles } from '../styles';
@@ -25,7 +26,7 @@ export default function ResultScreen({ route, navigation }) {
   };
 
   return (
-    <View style={styles.resultContainer}>
+    <SafeAreaView style={styles.resultContainer}>
       <Text selectable style={styles.resultText}>
         {entry.data}
       </Text>
@@ -47,6 +48,6 @@ export default function ResultScreen({ route, navigation }) {
       <TouchableOpacity onPress={() => navigation.navigate('Scanner')}>
         <Text style={styles.link}>Сканувати знову</Text>
       </TouchableOpacity>
-    </View>
+    </SafeAreaView>
   );
 }
