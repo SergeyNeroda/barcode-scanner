@@ -1,12 +1,32 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, Button, FlatList, Linking } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, Text, View, Button, TouchableOpacity, FlatList, Linking, Share } from 'react-native';
+import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BarCodeScanner } from 'expo-barcode-scanner';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
 
+const Stack = createNativeStackNavigator();
+const HISTORY_KEY = 'scan_history';
+
 export default function App() {
+  return (
+    <NavigationContainer>
+      <Stack.Navigator>
+        <Stack.Screen name="Scanner" component={ScannerScreen} options={{ headerShown: false }} />
+        <Stack.Screen name="Result" component={ResultScreen} options={{ title: 'Result' }} />
+        <Stack.Screen name="History" component={HistoryScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+function ScannerScreen({ navigation }) {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
-  const [history, setHistory] = useState([]);
+  const [cameraType, setCameraType] = useState(BarCodeScanner.Constants.Type.back);
+  const [flash, setFlash] = useState(BarCodeScanner.Constants.FlashMode.off);
 
   useEffect(() => {
     (async () => {
@@ -15,10 +35,17 @@ export default function App() {
     })();
   }, []);
 
-  const handleBarCodeScanned = ({ type, data }) => {
+  useFocusEffect(
+    useCallback(() => {
+      setScanned(false);
+    }, [])
+  );
+
+  const handleBarCodeScanned = async ({ data }) => {
     setScanned(true);
-    const entry = { id: Date.now().toString(), type, data };
-    setHistory((current) => [entry, ...current]);
+    const entry = { id: Date.now().toString(), data, timestamp: Date.now() };
+    await saveHistory(entry);
+    navigation.navigate('Result', { entry });
   };
 
   if (hasPermission === null) {
@@ -37,37 +64,105 @@ export default function App() {
     );
   }
 
-  const last = history[0];
+  return (
+    <View style={styles.container}>
+      <BarCodeScanner
+        onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
+        type={cameraType}
+        flashMode={flash}
+        style={StyleSheet.absoluteFillObject}
+      />
+      <View style={styles.controls}>
+        <Button
+          title={flash === BarCodeScanner.Constants.FlashMode.torch ? 'Flash Off' : 'Flash On'}
+          onPress={() =>
+            setFlash(
+              flash === BarCodeScanner.Constants.FlashMode.torch
+                ? BarCodeScanner.Constants.FlashMode.off
+                : BarCodeScanner.Constants.FlashMode.torch
+            )
+          }
+        />
+        <Button
+          title="Switch Camera"
+          onPress={() =>
+            setCameraType(
+              cameraType === BarCodeScanner.Constants.Type.back
+                ? BarCodeScanner.Constants.Type.front
+                : BarCodeScanner.Constants.Type.back
+            )
+          }
+        />
+        <Button title="History" onPress={() => navigation.navigate('History')} />
+      </View>
+      <StatusBar style="light" />
+    </View>
+  );
+}
+
+function ResultScreen({ route, navigation }) {
+  const { entry } = route.params;
+  const isUrl = isValidUrl(entry.data);
+
+  const copy = async () => {
+    await Clipboard.setStringAsync(entry.data);
+  };
+
+  const shareData = () => {
+    Share.share({ message: entry.data });
+  };
+
+  return (
+    <View style={styles.centered}>
+      <Text selectable style={styles.resultText}>{entry.data}</Text>
+      {isUrl && <Button title="Open in browser" onPress={() => Linking.openURL(entry.data)} />}
+      <Button title="Copy" onPress={copy} />
+      <Button title="Share" onPress={shareData} />
+      <Button title="Scan Again" onPress={() => navigation.navigate('Scanner')} />
+    </View>
+  );
+}
+
+function HistoryScreen({ navigation }) {
+  const [history, setHistory] = useState([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        setHistory(await loadHistory());
+      })();
+    }, [])
+  );
+
+  const clearHistory = async () => {
+    await AsyncStorage.removeItem(HISTORY_KEY);
+    setHistory([]);
+  };
+
+  const renderItem = ({ item }) => (
+    <TouchableOpacity onPress={() => navigation.navigate('Result', { entry: item })}>
+      <View style={styles.historyItem}>
+        <Text style={styles.itemText}>{snippet(item.data)}</Text>
+        <Text style={styles.itemDate}>{new Date(item.timestamp).toLocaleString()}</Text>
+      </View>
+    </TouchableOpacity>
+  );
 
   return (
     <View style={styles.container}>
-      {!scanned && (
-        <BarCodeScanner
-          onBarCodeScanned={handleBarCodeScanned}
-          style={StyleSheet.absoluteFillObject}
-        />
-      )}
-      {scanned && (
-        <View style={styles.overlay}>
-          <Text style={styles.text}>Last Scan: {last?.data}</Text>
-          <Button title="Scan Again" onPress={() => setScanned(false)} />
-          {last && isValidUrl(last.data) && (
-            <Button title="Open Link" onPress={() => Linking.openURL(last.data)} />
-          )}
-          <Text style={styles.text}>Total scans: {history.length}</Text>
-        </View>
-      )}
       <FlatList
         data={history}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <Text style={styles.listItem}>{item.data}</Text>
-        )}
-        style={styles.list}
+        renderItem={renderItem}
+        contentContainerStyle={{ padding: 16 }}
       />
-      <StatusBar style="auto" />
+      <Button title="Clear History" onPress={clearHistory} />
     </View>
   );
+}
+
+function snippet(text) {
+  return text.length > 30 ? text.slice(0, 30) + '...' : text;
 }
 
 function isValidUrl(value) {
@@ -79,38 +174,50 @@ function isValidUrl(value) {
   }
 }
 
+async function saveHistory(entry) {
+  const list = await loadHistory();
+  list.unshift(entry);
+  await AsyncStorage.setItem(HISTORY_KEY, JSON.stringify(list));
+}
+
+async function loadHistory() {
+  const data = await AsyncStorage.getItem(HISTORY_KEY);
+  return data ? JSON.parse(data) : [];
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#000',
   },
-  overlay: {
+  controls: {
     position: 'absolute',
-    top: 0,
+    bottom: 40,
     left: 0,
     right: 0,
-    paddingTop: 50,
-    alignItems: 'center',
-  },
-  text: {
-    color: '#fff',
-    marginBottom: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
   },
   centered: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 16,
   },
-  list: {
-    position: 'absolute',
-    bottom: 0,
-    width: '100%',
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  listItem: {
-    color: '#fff',
-    padding: 4,
+  resultText: {
+    fontSize: 16,
+    marginBottom: 16,
     textAlign: 'center',
   },
+  historyItem: {
+    paddingVertical: 8,
+  },
+  itemText: {
+    color: '#fff',
+    fontSize: 14,
+  },
+  itemDate: {
+    color: '#888',
+    fontSize: 12,
+  },
 });
-
