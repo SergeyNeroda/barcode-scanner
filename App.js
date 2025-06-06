@@ -5,6 +5,8 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import ScannerScreen from './src/screens/ScannerScreen';
 import ResultScreen from './src/screens/ResultScreen';
 import HistoryScreen from './src/screens/HistoryScreen';
+import EditPhotoScreen from './src/screens/EditPhotoScreen';
+import GalleryScreen from './src/screens/GalleryScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -26,6 +28,16 @@ export default function App() {
           name="History"
           component={HistoryScreen}
           options={{ title: 'Історія' }}
+        />
+        <Stack.Screen
+          name="EditPhoto"
+          component={EditPhotoScreen}
+          options={{ title: 'Редагування' }}
+        />
+        <Stack.Screen
+          name="Gallery"
+          component={GalleryScreen}
+          options={{ title: 'Галерея' }}
         />
       </Stack.Navigator>
     </NavigationContainer>
