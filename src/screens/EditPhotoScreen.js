@@ -1,5 +1,11 @@
-import React, { useState, useRef } from 'react';
-import { View, Image, PanResponder, TouchableOpacity, Text } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  Image,
+  PanResponder,
+  TouchableOpacity,
+  Text,
+} from 'react-native';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';
 
 import { styles } from '../styles';
@@ -9,6 +15,12 @@ export default function EditPhotoScreen({ route, navigation }) {
   const { photoUri } = route.params;
   const [crop, setCrop] = useState(null);
   const startRef = useRef(null);
+  const [layout, setLayout] = useState({ width: 0, height: 0 });
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    Image.getSize(photoUri, (w, h) => setImageSize({ width: w, height: h }));
+  }, [photoUri]);
 
   const panResponder = useRef(
     PanResponder.create({
@@ -37,15 +49,17 @@ export default function EditPhotoScreen({ route, navigation }) {
   const cropAndSave = async () => {
     let uri = photoUri;
     if (crop && crop.width > 0 && crop.height > 0) {
+      const widthScale = imageSize.width / layout.width;
+      const heightScale = imageSize.height / layout.height;
       const result = await manipulateAsync(
         photoUri,
         [
           {
             crop: {
-              originX: crop.x,
-              originY: crop.y,
-              width: crop.width,
-              height: crop.height,
+              originX: crop.x * widthScale,
+              originY: crop.y * heightScale,
+              width: crop.width * widthScale,
+              height: crop.height * heightScale,
             },
           },
         ],
@@ -59,7 +73,11 @@ export default function EditPhotoScreen({ route, navigation }) {
 
   return (
     <View style={styles.cropContainer}>
-      <View style={{ flex: 1 }} {...panResponder.panHandlers}>
+      <View
+        style={{ flex: 1 }}
+        onLayout={(e) => setLayout(e.nativeEvent.layout)}
+        {...panResponder.panHandlers}
+      >
         <Image source={{ uri: photoUri }} style={styles.cropImage} resizeMode="contain" />
         {crop && (
           <View
