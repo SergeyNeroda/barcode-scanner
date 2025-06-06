@@ -20,6 +20,7 @@ export default function ScannerScreen({ navigation }) {
   const [scanned, setScanned] = useState(false);
   const [facing, setFacing] = useState('back');
   const [flash, setFlash] = useState('off');
+  const cameraRef = React.useRef(null);
   const frameAnim = React.useRef(new Animated.Value(0)).current;
 
   useFocusEffect(
@@ -80,9 +81,20 @@ export default function ScannerScreen({ navigation }) {
     setFlash((prev) => (prev === 'torch' ? 'off' : 'torch'));
   };
 
+  const openGallery = () => {
+    navigation.navigate('Gallery');
+  };
+
+  const takePhoto = async () => {
+    if (!cameraRef.current) return;
+    const photo = await cameraRef.current.takePictureAsync();
+    navigation.navigate('EditPhoto', { photoUri: photo.uri });
+  };
+
   return (
     <View style={styles.container}>
       <CameraView
+        ref={cameraRef}
         style={StyleSheet.absoluteFillObject}
         facing={facing}
         flash={flash}
@@ -107,6 +119,12 @@ export default function ScannerScreen({ navigation }) {
             onPress={() => navigation.navigate('History')}
           >
             <MaterialIcons name="history" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={openGallery}>
+            <MaterialIcons name="photo-library" size={28} color="#fff" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.iconBtn} onPress={takePhoto}>
+            <MaterialIcons name="photo-camera" size={28} color="#fff" />
           </TouchableOpacity>
         </View>
       </CameraView>

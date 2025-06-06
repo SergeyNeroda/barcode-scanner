@@ -34,7 +34,7 @@ export const styles = StyleSheet.create({
     right: 24,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    width: 120,
+    width: 200,
   },
   iconBtn: {
     backgroundColor: '#00000044',
@@ -112,5 +112,44 @@ export const styles = StyleSheet.create({
     color: colors.gray,
     fontSize: 12,
     marginTop: 4,
+  },
+  galleryContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
+    padding: 16,
+  },
+  galleryItem: {
+    marginBottom: 16,
+  },
+  galleryImage: {
+    width: '100%',
+    height: 200,
+    borderRadius: 8,
+  },
+  deleteBtn: {
+    position: 'absolute',
+    top: 8,
+    right: 8,
+    backgroundColor: '#00000088',
+    borderRadius: 20,
+    padding: 4,
+  },
+  cropContainer: {
+    flex: 1,
+    backgroundColor: '#000',
+  },
+  cropImage: {
+    flex: 1,
+  },
+  cropFrame: {
+    position: 'absolute',
+    borderWidth: 2,
+    borderColor: colors.accent,
+  },
+  cropActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    padding: 16,
+    backgroundColor: '#000',
   },
 });
