@@ -12,6 +12,13 @@
     "expo": "~53.0.10",
     "expo-status-bar": "~2.2.3",
     "expo-barcode-scanner": "~12.7.0",
+    "expo-clipboard": "~2.5.1",
+    "expo-sharing": "~11.3.0",
+    "@react-native-async-storage/async-storage": "~1.20.0",
+    "@react-navigation/native": "^6.1.7",
+    "@react-navigation/native-stack": "^6.9.12",
+    "react-native-safe-area-context": "^4.7.1",
+    "react-native-screens": "~3.22.0",
     "react": "19.0.0",
     "react-native": "0.79.3"
   },
