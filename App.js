@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, Button, TouchableOpacity, FlatList, Linking, Share } from 'react-native';
 import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { BarCodeScanner } from 'expo-barcode-scanner';
+import { Camera, BarCodeScanner } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
 import { StatusBar } from 'expo-status-bar';
@@ -25,12 +25,12 @@ export default function App() {
 function ScannerScreen({ navigation }) {
   const [hasPermission, setHasPermission] = useState(null);
   const [scanned, setScanned] = useState(false);
-  const [cameraType, setCameraType] = useState(BarCodeScanner.Constants.Type.back);
-  const [flash, setFlash] = useState(BarCodeScanner.Constants.FlashMode.off);
+  const [cameraType, setCameraType] = useState(Camera.Constants.Type.back);
+  const [flash, setFlash] = useState(Camera.Constants.FlashMode.off);
 
   useEffect(() => {
     (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
+      const { status } = await Camera.requestCameraPermissionsAsync();
       setHasPermission(status === 'granted');
     })();
   }, []);
@@ -66,20 +66,23 @@ function ScannerScreen({ navigation }) {
 
   return (
     <View style={styles.container}>
-      <BarCodeScanner
+      <Camera
         onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
         type={cameraType}
         flashMode={flash}
         style={StyleSheet.absoluteFillObject}
+        barCodeScannerSettings={{
+          barCodeTypes: [BarCodeScanner.Constants.BarCodeType.qr],
+        }}
       />
       <View style={styles.controls}>
         <Button
-          title={flash === BarCodeScanner.Constants.FlashMode.torch ? 'Flash Off' : 'Flash On'}
+          title={flash === Camera.Constants.FlashMode.torch ? 'Flash Off' : 'Flash On'}
           onPress={() =>
             setFlash(
-              flash === BarCodeScanner.Constants.FlashMode.torch
-                ? BarCodeScanner.Constants.FlashMode.off
-                : BarCodeScanner.Constants.FlashMode.torch
+              flash === Camera.Constants.FlashMode.torch
+                ? Camera.Constants.FlashMode.off
+                : Camera.Constants.FlashMode.torch
             )
           }
         />
@@ -87,9 +90,9 @@ function ScannerScreen({ navigation }) {
           title="Switch Camera"
           onPress={() =>
             setCameraType(
-              cameraType === BarCodeScanner.Constants.Type.back
-                ? BarCodeScanner.Constants.Type.front
-                : BarCodeScanner.Constants.Type.back
+              cameraType === Camera.Constants.Type.back
+                ? Camera.Constants.Type.front
+                : Camera.Constants.Type.back
             )
           }
         />
