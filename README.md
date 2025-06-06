@@ -4,6 +4,9 @@ This React Native application demonstrates QR code scanning using Expo. It keeps
 track of all scanned codes and allows you to open URLs directly if the scanned
 data is a valid link.
 
+The scanner is implemented with **expo-camera**, which supersedes the deprecated
+`expo-barcode-scanner` package.
+
 ## Development
 
 1. Install dependencies with `npm install`.

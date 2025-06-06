@@ -11,7 +11,7 @@
   "dependencies": {
     "expo": "~53.0.10",
     "expo-status-bar": "~2.2.3",
-    "expo-barcode-scanner": "~12.7.0",
+    "expo-camera": "~15.0.0",
     "expo-clipboard": "~2.5.1",
     "expo-sharing": "~11.3.0",
     "@react-native-async-storage/async-storage": "~1.20.0",
