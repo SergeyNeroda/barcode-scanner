@@ -4,19 +4,28 @@ import {
   StyleSheet,
   Text,
   View,
-  Button,
   TouchableOpacity,
   FlatList,
   Linking,
-  Share,
+  Button,
+  Alert,
   Animated,
 } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { NavigationContainer, useFocusEffect } from '@react-navigation/native';
+import {
+  NavigationContainer,
+  useFocusEffect,
+} from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
-// Тепер імпортуємо тільки Camera з expo-camera
-import { Camera } from 'expo-camera';
+// Імпорт із останньої версії expo-camera (SDK 52+)
+import {
+  CameraView,
+  CameraType,
+  FlashMode,
+  BarcodeType,
+  useCameraPermissions,
+} from 'expo-camera';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Clipboard from 'expo-clipboard';
@@ -29,7 +38,6 @@ const colors = {
   primary: '#1E2A38',
   accent: '#00BFA6',
   background: '#F7F8FA',
-  overlay: '#00000088',
   text: '#2B2B2B',
   gray: '#757575',
 };
@@ -48,26 +56,38 @@ export default function App() {
               component={ResultScreen}
               options={{ title: 'Результат' }}
           />
-          <Stack.Screen name="History" component={HistoryScreen} options={{ title: 'Історія' }} />
+          <Stack.Screen
+              name="History"
+              component={HistoryScreen}
+              options={{ title: 'Історія' }}
+          />
         </Stack.Navigator>
       </NavigationContainer>
   );
 }
 
+/* -----------------------------------------------------------
+   ScannerScreen
+   — виправлена послідовність викликів хуків
+----------------------------------------------------------- */
 function ScannerScreen({ navigation }) {
-  const [hasPermission, setHasPermission] = useState(null);
+  // 1. Викликаємо всі хуки одразу при вході в компонент
+  const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const [cameraType, setCameraType] = useState('back');
+  const [facing, setFacing] = useState('back');
   const [flash, setFlash] = useState('off');
-  const frameAnim = useState(new Animated.Value(0))[0];
+  // Ініціалізуємо Animated.Value для пульсації рамки
+  const frameAnim = React.useRef(new Animated.Value(0)).current;
 
+  // Хук, що скидає scanned у false, коли скриншот знову у фокусі
+  useFocusEffect(
+      useCallback(() => {
+        setScanned(false);
+      }, [])
+  );
+
+  // Анімація пульсації рамки
   useEffect(() => {
-    (async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-
-    // Пульсація рамки
     Animated.loop(
         Animated.sequence([
           Animated.timing(frameAnim, {
@@ -82,50 +102,86 @@ function ScannerScreen({ navigation }) {
           }),
         ])
     ).start();
-  }, []);
+  }, [frameAnim]);
 
-  // Коли екран знову в фокусі, дозволяємо сканувати ще раз
-  useFocusEffect(
-      useCallback(() => {
-        setScanned(false);
-      }, [])
-  );
+  // Тепер — умовні рендери, але вже після того, як усі хуки викликалися
 
-  const handleBarCodeScanned = async ({ data }) => {
+  // Якщо permission ще не завантажено (null) — повертаємо порожній View
+  if (!permission) {
+    return <View />;
+  }
+  // Якщо не дали дозвіл — питаємо ще раз
+  if (!permission.granted) {
+    return (
+        <View style={styles.centered}>
+          <Text style={styles.message}>
+            Ми потребуємо ваш дозвіл, щоб показати камеру
+          </Text>
+          <Button onPress={requestPermission} title="Надати дозвіл" />
+        </View>
+    );
+  }
+
+  // Обробник успішного сканування QR
+  const onBarcodeScanned = async ({ data, type }) => {
     setScanned(true);
-    const entry = { id: Date.now().toString(), data, timestamp: Date.now() };
+    const entry = {
+      id: Date.now().toString(),
+      data,
+      type,
+      timestamp: Date.now(),
+    };
     await saveHistory(entry);
     navigation.navigate('Result', { entry });
   };
 
-  if (hasPermission === null) {
-    return (
-        <View style={styles.centered}>
-          <Text>Запит доступу до камери…</Text>
-        </View>
+  // Перемикач камери
+  const toggleCamera = () => {
+    setFacing((prev) =>
+        prev === 'back' ? 'front' : 'back'
     );
-  }
-
-  if (hasPermission === false) {
-    return (
-        <View style={styles.centered}>
-          <Text>Немає доступу до камери</Text>
-        </View>
+  };
+  // Перемикач спалаху
+  const toggleFlash = () => {
+    setFlash((prev) =>
+        prev === 'torch' ? 'off' : 'torch'
     );
-  }
+  };
 
+  // Якщо дозвіл є — рендеримо повноекранний CameraView
   return (
       <View style={styles.container}>
-        <Camera
+        <CameraView
             style={StyleSheet.absoluteFillObject}
-            type={cameraType}
-            flashMode={flash}
-            onBarCodeScanned={scanned ? undefined : handleBarCodeScanned}
-            // Використовуємо константи з Camera для QR-кодів:
-            barCodeScannerSettings={{
-              barCodeTypes: ['qr'],
+            facing={facing}
+            flash={flash}
+            onBarcodeScanned={scanned ? undefined : onBarcodeScanned}
+            barcodeScannerSettings={{
+              barcodeTypes: ['qr'],
             }}
-        />
+        >
+          {/* Накладаємо кнопки зверху */}
+          <View style={styles.overlayControls}>
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleFlash}>
+              <MaterialIcons
+                  name={flash === 'torch' ? 'flash-off' : 'flash-on'}
+                  size={28}
+                  color="#fff"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.iconBtn} onPress={toggleCamera}>
+              <MaterialIcons name="switch-camera" size={28} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+                style={styles.iconBtn}
+                onPress={() => navigation.navigate('History')}
+            >
+              <MaterialIcons name="history" size={28} color="#fff" />
+            </TouchableOpacity>
+          </View>
+        </CameraView>
+
+        {/* Пульсуюча рамка-накладка */}
         <View style={styles.overlay} pointerEvents="none">
           <Animated.View
               style={[
@@ -139,40 +195,28 @@ function ScannerScreen({ navigation }) {
               ]}
           />
         </View>
-        <View style={styles.controls}>
-          <ControlButton
-              icon={flash === 'torch' ? 'flash-off' : 'flash-on'}
-              onPress={() =>
-                  setFlash(
-                      flash === 'torch'
-                          ? 'off'
-                          : 'torch'
-                  )
-              }
-          />
-          <ControlButton
-              icon="switch-camera"
-              onPress={() =>
-                  setCameraType((prev) =>
-                      prev === 'back'
-                          ? 'front'
-                          : 'back'
-                  )
-              }
-          />
-          <ControlButton icon="history" onPress={() => navigation.navigate('History')} />
-        </View>
+
         <StatusBar style="light" />
       </View>
   );
 }
 
+/* -----------------------------------------------------------
+   ResultScreen
+----------------------------------------------------------- */
 function ResultScreen({ route, navigation }) {
   const { entry } = route.params;
   const isUrl = isValidUrl(entry.data);
 
-  const copy = async () => {
+  const copyToClipboard = async () => {
     await Clipboard.setStringAsync(entry.data);
+    Alert.alert('Скопійовано', 'Текст скопійовано в буфер обміну');
+  };
+
+  const openLink = () => {
+    Linking.openURL(entry.data).catch(() =>
+        Alert.alert('Помилка', 'Не вдалося відкрити URL')
+    );
   };
 
   const shareData = () => {
@@ -184,22 +228,21 @@ function ResultScreen({ route, navigation }) {
         <Text selectable style={styles.resultText}>
           {entry.data}
         </Text>
-        {isUrl && (
-            <TouchableOpacity
-                style={styles.primaryBtn}
-                onPress={() => Linking.openURL(entry.data)}
-            >
+
+        {isUrl ? (
+            <TouchableOpacity style={styles.primaryBtn} onPress={openLink}>
               <Text style={styles.primaryBtnText}>Відкрити</Text>
             </TouchableOpacity>
-        )}
-        {!isUrl && (
+        ) : (
             <TouchableOpacity style={styles.primaryBtn} onPress={shareData}>
               <Text style={styles.primaryBtnText}>Поділитися</Text>
             </TouchableOpacity>
         )}
-        <TouchableOpacity style={styles.secondaryBtn} onPress={copy}>
+
+        <TouchableOpacity style={styles.secondaryBtn} onPress={copyToClipboard}>
           <Text style={styles.secondaryBtnText}>Копіювати</Text>
         </TouchableOpacity>
+
         <TouchableOpacity onPress={() => navigation.navigate('Scanner')}>
           <Text style={styles.link}>Сканувати знову</Text>
         </TouchableOpacity>
@@ -207,6 +250,9 @@ function ResultScreen({ route, navigation }) {
   );
 }
 
+/* -----------------------------------------------------------
+   HistoryScreen
+----------------------------------------------------------- */
 function HistoryScreen({ navigation }) {
   const [history, setHistory] = useState([]);
 
@@ -241,14 +287,24 @@ function HistoryScreen({ navigation }) {
             keyExtractor={(item) => item.id}
             renderItem={renderItem}
             contentContainerStyle={{ padding: 16 }}
+            ListEmptyComponent={
+              <View style={styles.centered}>
+                <Text style={styles.message}>Історія порожня</Text>
+              </View>
+            }
         />
-        <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory}>
-          <Text style={styles.secondaryBtnText}>Очистити</Text>
-        </TouchableOpacity>
+        {history.length > 0 && (
+            <TouchableOpacity style={styles.secondaryBtn} onPress={clearHistory}>
+              <Text style={styles.secondaryBtnText}>Очистити історію</Text>
+            </TouchableOpacity>
+        )}
       </View>
   );
 }
 
+/* -----------------------------------------------------------
+   УТИЛІТИ
+----------------------------------------------------------- */
 function snippet(text) {
   return text.length > 30 ? text.slice(0, 30) + '...' : text;
 }
@@ -273,34 +329,41 @@ async function loadHistory() {
   return data ? JSON.parse(data) : [];
 }
 
-const ControlButton = ({ icon, onPress }) => (
-    <TouchableOpacity onPress={onPress} style={styles.controlBtn}>
-      <MaterialIcons name={icon} size={28} color="#fff" />
-    </TouchableOpacity>
-);
-
+/* -----------------------------------------------------------
+   СТИЛІ
+----------------------------------------------------------- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.primary,
   },
-  historyContainer: {
+  centered: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
     backgroundColor: colors.background,
   },
-  controls: {
-    position: 'absolute',
-    bottom: 40,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
+  message: {
+    textAlign: 'center',
+    marginBottom: 12,
+    color: colors.text,
   },
-  controlBtn: {
+  camera: {
+    flex: 1,
+  },
+  overlayControls: {
+    position: 'absolute',
+    top: 48,
+    right: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: 120,
+  },
+  iconBtn: {
     backgroundColor: '#00000044',
-    padding: 12,
-    borderRadius: 8,
+    padding: 8,
+    borderRadius: 24,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
@@ -314,23 +377,16 @@ const styles = StyleSheet.create({
     borderColor: colors.accent,
     borderRadius: 8,
   },
-  centered: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: colors.background,
-  },
   resultContainer: {
     flex: 1,
+    backgroundColor: colors.background,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: colors.background,
   },
   resultText: {
     fontSize: 16,
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: 'center',
     color: colors.text,
   },
@@ -339,9 +395,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 8,
-    marginTop: 8,
-    width: '80%',
-    alignItems: 'center',
+    marginBottom: 12,
   },
   primaryBtnText: {
     color: '#fff',
@@ -353,9 +407,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: 8,
-    marginTop: 8,
-    width: '80%',
-    alignItems: 'center',
+    marginBottom: 12,
   },
   secondaryBtnText: {
     color: colors.primary,
@@ -364,11 +416,15 @@ const styles = StyleSheet.create({
   link: {
     color: colors.accent,
     fontSize: 16,
-    marginTop: 12,
     textDecorationLine: 'underline',
+    marginTop: 16,
+  },
+  historyContainer: {
+    flex: 1,
+    backgroundColor: colors.background,
   },
   historyItem: {
-    paddingVertical: 8,
+    paddingVertical: 12,
     borderBottomWidth: 1,
     borderColor: '#E0E0E0',
   },
@@ -379,5 +435,6 @@ const styles = StyleSheet.create({
   itemDate: {
     color: colors.gray,
     fontSize: 12,
+    marginTop: 4,
   },
 });
