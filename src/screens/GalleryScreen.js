@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, FlatList, Image, TouchableOpacity, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 
@@ -32,7 +33,7 @@ export default function GalleryScreen() {
   );
 
   return (
-    <View style={styles.galleryContainer}>
+    <SafeAreaView style={styles.galleryContainer}>
       <FlatList
         data={photos}
         keyExtractor={(item) => item}
@@ -43,6 +44,6 @@ export default function GalleryScreen() {
           </View>
         }
       />
-    </View>
+    </SafeAreaView>
   );
 }

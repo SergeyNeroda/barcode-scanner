@@ -8,6 +8,7 @@ import {
   StyleSheet,
   TouchableWithoutFeedback,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import Slider from '@react-native-community/slider';
 import { PinchGestureHandler, State } from 'react-native-gesture-handler';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -117,7 +118,7 @@ export default function ScannerScreen({ navigation }) {
   };
 
   return (
-    <View
+    <SafeAreaView
       style={styles.container}
       onLayout={(e) => setLayout(e.nativeEvent.layout)}
     >
@@ -138,6 +139,10 @@ export default function ScannerScreen({ navigation }) {
               barcodeTypes: ['qr'],
             }}
           >
+            <TouchableWithoutFeedback onPress={handleFocus}>
+              <View style={StyleSheet.absoluteFillObject} />
+            </TouchableWithoutFeedback>
+
             <View style={styles.overlayControls}>
               <TouchableOpacity style={styles.iconBtn} onPress={toggleFlash}>
                 <MaterialIcons
@@ -163,9 +168,6 @@ export default function ScannerScreen({ navigation }) {
               </TouchableOpacity>
             </View>
           </CameraView>
-          <TouchableWithoutFeedback onPress={handleFocus}>
-            <View style={StyleSheet.absoluteFillObject} />
-          </TouchableWithoutFeedback>
         </View>
       </PinchGestureHandler>
 
@@ -196,6 +198,6 @@ export default function ScannerScreen({ navigation }) {
       </View>
 
       <StatusBar style="light" />
-    </View>
+    </SafeAreaView>
   );
 }

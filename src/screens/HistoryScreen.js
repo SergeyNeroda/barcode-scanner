@@ -1,5 +1,6 @@
 import React, { useState, useCallback } from 'react';
 import { View, FlatList, TouchableOpacity, Text } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -34,7 +35,7 @@ export default function HistoryScreen({ navigation }) {
   );
 
   return (
-    <View style={styles.historyContainer}>
+    <SafeAreaView style={styles.historyContainer}>
       <FlatList
         data={history}
         keyExtractor={(item) => item.id}
@@ -51,6 +52,6 @@ export default function HistoryScreen({ navigation }) {
           <Text style={styles.secondaryBtnText}>Очистити історію</Text>
         </TouchableOpacity>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
