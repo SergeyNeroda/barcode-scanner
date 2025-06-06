@@ -152,4 +152,10 @@ export const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: '#000',
   },
+  zoomSliderContainer: {
+    position: 'absolute',
+    bottom: 40,
+    left: 20,
+    right: 20,
+  },
 });
